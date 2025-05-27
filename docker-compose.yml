@@ -36,7 +36,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - "5280:5000"
+      - "5280:5280"
     depends_on:
       mongodb:
         condition: service_healthy
