@@ -6,8 +6,6 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    FLASK_APP=app \
-    FLASK_ENV=development \
     PORT=5280
 
 # Install system dependencies
@@ -32,5 +30,5 @@ RUN mkdir -p logs
 # Expose port
 EXPOSE 5280
 
-# Command to run the application
-CMD ["python", "-m", "app.wsgi"] 
+# Command to run the application with gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5280", "app:create_app()"] 

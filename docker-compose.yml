@@ -35,8 +35,6 @@ services:
       dockerfile: Dockerfile
     environment:
       - PORT=5280
-      - FLASK_APP=run.py
-      - FLASK_ENV=development
     env_file:
       - .env
     volumes:
