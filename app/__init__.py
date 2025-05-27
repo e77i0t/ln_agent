@@ -12,6 +12,10 @@ def create_app(config_object=None):
     Returns:
         Flask application instance
     """
+    # Force port 5280 before Flask is initialized
+    os.environ['PORT'] = '5280'
+    os.environ['FLASK_RUN_PORT'] = '5280'
+    
     app = Flask(__name__)
     
     # Load configuration
@@ -24,15 +28,14 @@ def create_app(config_object=None):
     # Set up logging
     setup_logger(__name__, config_object)
     
+    # Force port configuration
+    app.config['PORT'] = 5280
+    
     # Register blueprints (to be added later)
     
     @app.route('/health')
     def health_check():
         """Basic health check endpoint."""
         return {'status': 'healthy'}, 200
-
-    # Set the port from environment variable
-    port = int(os.environ.get('PORT', 5280))
-    app.config['PORT'] = port
     
     return app 
