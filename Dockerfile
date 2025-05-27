@@ -33,4 +33,4 @@ RUN mkdir -p logs
 EXPOSE 5280
 
 # Command to run the application
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5280"] 
+CMD ["python", "-m", "app.wsgi"] 
