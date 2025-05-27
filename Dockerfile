@@ -6,7 +6,8 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=5280
+    PORT=5280 \
+    GUNICORN_CMD_ARGS="--bind=0.0.0.0:5280 --workers=2 --threads=4 --worker-class=gthread"
 
 # Install system dependencies
 RUN apt-get update \
@@ -31,4 +32,4 @@ RUN mkdir -p logs
 EXPOSE 5280
 
 # Command to run the application with gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5280", "app:create_app()"] 
+CMD ["gunicorn", "wsgi:application"] 

@@ -35,12 +35,15 @@ services:
       dockerfile: Dockerfile
     environment:
       - PORT=5280
+      - GUNICORN_CMD_ARGS=--bind=0.0.0.0:5280 --workers=2 --threads=4 --worker-class=gthread
     env_file:
       - .env
     volumes:
       - .:/app
     ports:
       - "5280:5280"
+    expose:
+      - "5280"
     depends_on:
       mongodb:
         condition: service_healthy
