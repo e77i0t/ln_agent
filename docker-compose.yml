@@ -3,24 +3,44 @@ name: company-research-tool
 services:
   mongodb:
     image: mongo:6.0
-    ports:
-      - "27017:27017"
     volumes:
-      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGO_DATABASE}
+    command: >
+      mongod 
+      --wiredTigerCacheSizeGB 0.25
+      --setParameter maxTransactionLockRequestTimeoutMillis=5000
+      --storageEngine wiredTiger
+      --wiredTigerJournalCompressor none
+      --wiredTigerMaxCacheOverflowFileSizeGB 0.25
+      --oplogSize 128
+      --setParameter diagnosticDataCollectionEnabled=false
+    tmpfs:
+      - /data/db:size=2G,exec,mode=777
     networks:
       - app_network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongosh", "-u", "${MONGO_USERNAME}", "-p", "${MONGO_PASSWORD}", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 384M
 
   redis:
     image: redis:7.2-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     networks:
       - app_network
     healthcheck:
@@ -28,6 +48,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 128M
 
   app:
     build:
@@ -36,6 +62,11 @@ services:
     environment:
       - PORT=5280
       - GUNICORN_CMD_ARGS=--bind=0.0.0.0:5280 --workers=2 --threads=4 --worker-class=gthread
+      - REDIS_URL=redis://redis:6379
+      - CELERY_BROKER_URL=redis://redis:6379
+      - CELERY_RESULT_BACKEND=redis://redis:6379
+      - MONGODB_URI=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongodb:27017/${MONGO_DATABASE}?authSource=admin
+      - PYTHONPATH=/app
     env_file:
       - .env
     volumes:
@@ -51,6 +82,44 @@ services:
         condition: service_healthy
     networks:
       - app_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CELERY_BROKER_URL=redis://redis:6379
+      - CELERY_RESULT_BACKEND=redis://redis:6379
+      - MONGODB_URI=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongodb:27017/${MONGO_DATABASE}?authSource=admin
+      - PYTHONPATH=/app
+      - TMPDIR=/app/tmp
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - celery_tmp:/app/tmp
+    tmpfs:
+      - /app/tmp:mode=777,size=256M
+    depends_on:
+      - redis
+      - mongodb
+    networks:
+      - app_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
 networks:
   app_network:
@@ -58,4 +127,5 @@ networks:
 
 volumes:
   mongodb_data:
-  redis_data: 
+  redis_data:
+  celery_tmp: 

@@ -1,5 +1,7 @@
-from flask import Flask
+from flask import Flask, jsonify
 from app.utils.logger import setup_logger
+from app.tasks import test_task
+from celery.result import AsyncResult
 import os
 
 def create_app(config_object=None):
@@ -37,5 +39,24 @@ def create_app(config_object=None):
     def health_check():
         """Basic health check endpoint."""
         return {'status': 'healthy'}, 200
+    
+    @app.route('/tasks/test', methods=['POST'])
+    def trigger_test_task():
+        """Trigger a test Celery task."""
+        task = test_task.delay(4, 4)
+        return jsonify({
+            'task_id': task.id,
+            'status': 'Task started'
+        }), 202
+    
+    @app.route('/tasks/<task_id>/result')
+    def get_task_result(task_id):
+        """Get the result of a task by its ID."""
+        result = AsyncResult(task_id)
+        return jsonify({
+            'task_id': task_id,
+            'status': result.status,
+            'result': result.result if result.ready() else None
+        })
     
     return app 
