@@ -3,8 +3,11 @@ from app.utils.logger import setup_logger
 from app.tasks import test_task
 from celery.result import AsyncResult
 from app.database.connection import DatabaseManager
+from app.database.models import Company
 import redis
 import os
+import uuid
+from datetime import datetime
 
 def check_mongodb():
     """Check MongoDB connection"""
@@ -113,6 +116,63 @@ def create_app(config_object=None):
         }
         
         return response, 200 if all_healthy else 503
+
+    @app.route('/test/company', methods=['POST'])
+    def create_test_company():
+        """Create a test company to verify database functionality."""
+        try:
+            # Generate a unique identifier for test companies
+            test_id = str(uuid.uuid4())[:8]
+            
+            # Create a test company with unique name and domain
+            company = Company(
+                name=f"Test Company {test_id}",
+                domain=f"testcompany{test_id}.com",
+                industry="Technology",
+                size="1-10",
+                headquarters="Test Location",
+                description="Test company created for database verification",
+                linkedin_url=f"https://linkedin.com/company/testcompany{test_id}",
+                website_data={
+                    "test": True,
+                    "created_at": str(datetime.utcnow())
+                }
+            )
+            
+            # Get database connection
+            db_manager = DatabaseManager(os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/company_research'))
+            
+            if not db_manager.connect():
+                return jsonify({
+                    "status": "error",
+                    "message": "Failed to connect to database"
+                }), 500
+            
+            # Save the company
+            if company.save(db_manager):
+                return jsonify({
+                    "status": "success",
+                    "message": "Test company created successfully",
+                    "company": {
+                        "id": str(company._id),
+                        "name": company.name,
+                        "domain": company.domain
+                    }
+                }), 201
+            else:
+                return jsonify({
+                    "status": "error",
+                    "message": "Failed to save company"
+                }), 500
+                
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": str(e)
+            }), 500
+        finally:
+            if db_manager:
+                db_manager.disconnect()
     
     @app.route('/tasks/test', methods=['POST'])
     def trigger_test_task():
