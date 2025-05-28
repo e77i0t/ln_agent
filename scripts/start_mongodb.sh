@@ -15,7 +15,7 @@ mongod --bind_ip_all &
 
 # Wait for MongoDB to start (max 30 seconds)
 for i in {1..30}; do
-    if mongosh --eval "db.runCommand({ ping: 1 })" > /dev/null 2>&1; then
+    if mongo --quiet --eval "db.runCommand({ ping: 1 }).ok" > /dev/null 2>&1; then
         echo "MongoDB started successfully"
         exit 0
     fi
