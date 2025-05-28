@@ -14,7 +14,7 @@ fi
 # Wait for MongoDB to be ready (max 30 seconds)
 echo "Checking MongoDB connection..."
 for i in {1..30}; do
-    if mongosh --quiet --eval "db.runCommand({ ping: 1 }).ok" | grep -q "1"; then
+    if mongo --quiet --eval "db.runCommand({ ping: 1 }).ok" > /dev/null 2>&1; then
         echo "MongoDB is running and accessible"
         break
     fi
