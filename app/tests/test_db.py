@@ -1,6 +1,7 @@
 from app.database.connection import DatabaseManager
 from app.database.models import Company, Contact, Task, TaskType, TaskStatus, ResearchSession, ResearchType, SessionStatus
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -8,8 +9,11 @@ logger = logging.getLogger(__name__)
 def test_database_operations():
     """Test basic database operations"""
     try:
+        # Get MongoDB URL from environment or use default
+        mongo_url = os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/company_research_test')
+        
         # Initialize database connection
-        db_manager = DatabaseManager("mongodb://localhost:27017/company_research_test")
+        db_manager = DatabaseManager(mongo_url)
         
         # Test health check
         if not db_manager.connect():
