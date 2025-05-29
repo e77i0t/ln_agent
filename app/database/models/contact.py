@@ -17,6 +17,7 @@ class Contact(BaseDocument):
         self.linkedin_profile: str = kwargs.get('linkedin_profile', '')
         self.phone: str = kwargs.get('phone', '')
         self.notes: str = kwargs.get('notes', '')
+        self.source: str = kwargs.get('source', '')  # e.g., 'linkedin', 'website', 'manual'
         
     def validate(self) -> bool:
         """Validate required fields"""
@@ -36,6 +37,7 @@ class Contact(BaseDocument):
             'email': self.email,
             'linkedin_profile': self.linkedin_profile,
             'phone': self.phone,
-            'notes': self.notes
+            'notes': self.notes,
+            'source': self.source
         }
         return {**base_dict, **contact_dict} 

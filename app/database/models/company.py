@@ -16,6 +16,9 @@ class Company(BaseDocument):
         self.description: str = kwargs.get('description', '')
         self.linkedin_url: str = kwargs.get('linkedin_url', '')
         self.website_data: Dict[str, Any] = kwargs.get('website_data', {})
+        self.opencorporates_data: Dict[str, Any] = kwargs.get('opencorporates_data', {})
+        self.company_number: str = kwargs.get('company_number', '')
+        self.jurisdiction: str = kwargs.get('jurisdiction', '')
         
     def validate(self) -> bool:
         """Validate required fields"""
@@ -37,6 +40,9 @@ class Company(BaseDocument):
             'industry': self.industry,
             'description': self.description,
             'linkedin_url': self.linkedin_url,
-            'website_data': self.website_data
+            'website_data': self.website_data,
+            'opencorporates_data': self.opencorporates_data,
+            'company_number': self.company_number,
+            'jurisdiction': self.jurisdiction
         }
         return {**base_dict, **company_dict} 

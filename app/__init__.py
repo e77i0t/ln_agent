@@ -136,6 +136,14 @@ def create_app(config_object=None):
                 website_data={
                     "test": True,
                     "created_at": str(datetime.utcnow())
+                },
+                company_number=f"TEST{test_id}",
+                jurisdiction="US-DE",
+                opencorporates_data={
+                    "registration_number": f"TEST{test_id}",
+                    "jurisdiction_code": "us_de",
+                    "status": "active",
+                    "created_at": str(datetime.utcnow())
                 }
             )
             
@@ -156,7 +164,9 @@ def create_app(config_object=None):
                     "company": {
                         "id": str(company._id),
                         "name": company.name,
-                        "domain": company.domain
+                        "domain": company.domain,
+                        "company_number": company.company_number,
+                        "jurisdiction": company.jurisdiction
                     }
                 }), 201
             else:

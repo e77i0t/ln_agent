@@ -30,13 +30,34 @@ def test_database_operations():
         company = Company(
             name="Test Company",
             domain="testcompany.com",
-            industry="Technology"
+            industry="Technology",
+            company_number="12345",
+            jurisdiction="US-DE",
+            opencorporates_data={
+                "registration_number": "12345",
+                "jurisdiction_code": "us_de",
+                "status": "active"
+            }
         )
         if not company.save(db_manager):
             logger.error("Failed to save company")
             return False
             
         logger.info(f"Created company with ID: {company._id}")
+        
+        # Create test contact
+        contact = Contact(
+            name="Test Contact",
+            company_id=company._id,
+            title="Test Manager",
+            email="test@example.com",
+            source="linkedin"
+        )
+        if not contact.save(db_manager):
+            logger.error("Failed to save contact")
+            return False
+            
+        logger.info(f"Created contact with ID: {contact._id}")
         
         # Create test research session
         session = ResearchSession(
@@ -73,6 +94,7 @@ def test_database_operations():
         # Test cleanup
         task.delete(db_manager)
         session.delete(db_manager)
+        contact.delete(db_manager)
         company.delete(db_manager)
         
         logger.info("Test completed successfully")
