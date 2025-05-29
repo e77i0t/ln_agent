@@ -40,7 +40,14 @@ services:
       - "6380:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: >
+      redis-server 
+      --maxmemory 256mb 
+      --maxmemory-policy allkeys-lru 
+      --dir /data
+      --appendonly yes
+      --appendfsync everysec
+      --stop-writes-on-bgsave-error no
     networks:
       - app_network
     healthcheck:
@@ -54,6 +61,7 @@ services:
           memory: 384M
         reservations:
           memory: 128M
+    user: redis
 
   app:
     build:
@@ -126,6 +134,11 @@ networks:
     driver: bridge
 
 volumes:
-  mongodb_data:
   redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/data/redis
+      o: bind
+  mongodb_data:
   celery_tmp: 
