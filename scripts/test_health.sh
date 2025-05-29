@@ -8,7 +8,7 @@ check_endpoint() {
     local endpoint=$1
     echo "Testing $endpoint..."
     echo "Response:"
-    curl -s "$BASE_URL$endpoint" | python -m json.tool
+    curl -s "$BASE_URL$endpoint" | python3 -m json.tool
     echo -e "\n"
 }
 
