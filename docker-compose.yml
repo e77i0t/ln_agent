@@ -135,10 +135,5 @@ networks:
 
 volumes:
   redis_data:
-    driver: local
-    driver_opts:
-      type: none
-      device: ${PWD}/data/redis
-      o: bind
   mongodb_data:
   celery_tmp: 
