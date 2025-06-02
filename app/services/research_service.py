@@ -2,7 +2,7 @@
 Research service for managing research sessions and tasks.
 """
 
-from app.database.models import ResearchSession, Task, Company, ResearchType, SessionStatus
+from app.database.models import ResearchSession, Task, Company, ResearchType, SessionStatus, TaskType
 from app.scrapers.company_website_scraper import CompanyWebsiteScraper
 from datetime import datetime
 from bson import ObjectId
@@ -69,25 +69,25 @@ class ResearchService:
     def _create_research_tasks(self, session):
         """Create appropriate tasks based on research type"""
         base_tasks = [
-            {'type': 'website_scraping', 'title': 'Scrape company website'},
-            {'type': 'opencorporates_lookup', 'title': 'Get official company data'},
-            {'type': 'company_info', 'title': 'Extract company metadata'},
+            {'type': TaskType.DATA_COLLECTION, 'title': 'Scrape company website'},
+            {'type': TaskType.DATA_COLLECTION, 'title': 'Get official company data'},
+            {'type': TaskType.ANALYSIS, 'title': 'Extract company metadata'},
         ]
         
         if session.research_type == ResearchType.COMPANY_PROFILE:
             base_tasks.extend([
-                {'type': 'contact_discovery', 'title': 'Find key contacts'},
-                {'type': 'company_analysis', 'title': 'Analyze company profile'}
+                {'type': TaskType.DATA_COLLECTION, 'title': 'Find key contacts'},
+                {'type': TaskType.ANALYSIS, 'title': 'Analyze company profile'}
             ])
         elif session.research_type == ResearchType.MARKET_ANALYSIS:
             base_tasks.extend([
-                {'type': 'market_research', 'title': 'Research market size and trends'},
-                {'type': 'competitor_mapping', 'title': 'Map key competitors'}
+                {'type': TaskType.RESEARCH, 'title': 'Research market size and trends'},
+                {'type': TaskType.ANALYSIS, 'title': 'Map key competitors'}
             ])
         elif session.research_type == ResearchType.COMPETITOR_ANALYSIS:
             base_tasks.extend([
-                {'type': 'competitor_discovery', 'title': 'Identify main competitors'},
-                {'type': 'competitor_analysis', 'title': 'Analyze competitor strengths and weaknesses'}
+                {'type': TaskType.RESEARCH, 'title': 'Identify main competitors'},
+                {'type': TaskType.ANALYSIS, 'title': 'Analyze competitor strengths and weaknesses'}
             ])
         
         for task_data in base_tasks:
