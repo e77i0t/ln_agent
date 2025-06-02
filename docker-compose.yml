@@ -38,9 +38,14 @@ services:
     image: redis:7.2-alpine
     ports:
       - "6380:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: >
+      redis-server 
+      --maxmemory 256mb 
+      --maxmemory-policy allkeys-lru 
+      --save ""
+      --appendonly no
+    tmpfs:
+      - /data:size=256M,exec,mode=777
     networks:
       - app_network
     healthcheck:
@@ -54,6 +59,7 @@ services:
           memory: 384M
         reservations:
           memory: 128M
+    user: redis
 
   app:
     build:
@@ -126,6 +132,6 @@ networks:
     driver: bridge
 
 volumes:
-  mongodb_data:
   redis_data:
+  mongodb_data:
   celery_tmp: 

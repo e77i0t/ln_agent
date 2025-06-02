@@ -2,7 +2,48 @@ from flask import Flask, jsonify
 from app.utils.logger import setup_logger
 from app.tasks import test_task
 from celery.result import AsyncResult
+from app.database.connection import DatabaseManager
+from app.database.models import Company
+import redis
 import os
+import uuid
+from datetime import datetime
+
+def check_mongodb():
+    """Check MongoDB connection"""
+    try:
+        db_manager = DatabaseManager(os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/company_research'))
+        if db_manager.connect() and db_manager.health_check():
+            return {"status": "healthy"}
+        return {"status": "unhealthy", "message": "Failed to connect to MongoDB"}
+    except Exception as e:
+        return {"status": "unhealthy", "message": str(e)}
+    finally:
+        if db_manager:
+            db_manager.disconnect()
+
+def check_redis():
+    """Check Redis connection"""
+    try:
+        redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+        client = redis.from_url(redis_url)
+        client.ping()
+        return {"status": "healthy"}
+    except Exception as e:
+        return {"status": "unhealthy", "message": str(e)}
+
+def check_celery():
+    """Check Celery connection"""
+    try:
+        # Try to send a test task
+        task = test_task.delay(2, 2)
+        # Wait for a short time to see if task is received
+        result = AsyncResult(task.id)
+        if result.state in ['PENDING', 'STARTED', 'SUCCESS']:
+            return {"status": "healthy"}
+        return {"status": "unhealthy", "message": f"Task state: {result.state}"}
+    except Exception as e:
+        return {"status": "unhealthy", "message": str(e)}
 
 def create_app(config_object=None):
     """
@@ -39,6 +80,109 @@ def create_app(config_object=None):
     def health_check():
         """Basic health check endpoint."""
         return {'status': 'healthy'}, 200
+    
+    @app.route('/health/mongodb')
+    def mongodb_health():
+        """MongoDB health check endpoint."""
+        status = check_mongodb()
+        return status, 200 if status["status"] == "healthy" else 503
+    
+    @app.route('/health/redis')
+    def redis_health():
+        """Redis health check endpoint."""
+        status = check_redis()
+        return status, 200 if status["status"] == "healthy" else 503
+    
+    @app.route('/health/celery')
+    def celery_health():
+        """Celery health check endpoint."""
+        status = check_celery()
+        return status, 200 if status["status"] == "healthy" else 503
+    
+    @app.route('/health/all')
+    def all_services_health():
+        """Check health of all services."""
+        services = {
+            'api': {'status': 'healthy'},
+            'mongodb': check_mongodb(),
+            'redis': check_redis(),
+            'celery': check_celery()
+        }
+        
+        all_healthy = all(service['status'] == 'healthy' for service in services.values())
+        response = {
+            'status': 'healthy' if all_healthy else 'unhealthy',
+            'services': services
+        }
+        
+        return response, 200 if all_healthy else 503
+
+    @app.route('/test/company', methods=['POST'])
+    def create_test_company():
+        """Create a test company to verify database functionality."""
+        try:
+            # Generate a unique identifier for test companies
+            test_id = str(uuid.uuid4())[:8]
+            
+            # Create a test company with unique name and domain
+            company = Company(
+                name=f"Test Company {test_id}",
+                domain=f"testcompany{test_id}.com",
+                industry="Technology",
+                size="1-10",
+                headquarters="Test Location",
+                description="Test company created for database verification",
+                linkedin_url=f"https://linkedin.com/company/testcompany{test_id}",
+                website_data={
+                    "test": True,
+                    "created_at": str(datetime.utcnow())
+                },
+                company_number=f"TEST{test_id}",
+                jurisdiction="US-DE",
+                opencorporates_data={
+                    "registration_number": f"TEST{test_id}",
+                    "jurisdiction_code": "us_de",
+                    "status": "active",
+                    "created_at": str(datetime.utcnow())
+                }
+            )
+            
+            # Get database connection
+            db_manager = DatabaseManager(os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/company_research'))
+            
+            if not db_manager.connect():
+                return jsonify({
+                    "status": "error",
+                    "message": "Failed to connect to database"
+                }), 500
+            
+            # Save the company
+            if company.save(db_manager):
+                return jsonify({
+                    "status": "success",
+                    "message": "Test company created successfully",
+                    "company": {
+                        "id": str(company._id),
+                        "name": company.name,
+                        "domain": company.domain,
+                        "company_number": company.company_number,
+                        "jurisdiction": company.jurisdiction
+                    }
+                }), 201
+            else:
+                return jsonify({
+                    "status": "error",
+                    "message": "Failed to save company"
+                }), 500
+                
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": str(e)
+            }), 500
+        finally:
+            if db_manager:
+                db_manager.disconnect()
     
     @app.route('/tasks/test', methods=['POST'])
     def trigger_test_task():
