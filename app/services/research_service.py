@@ -6,6 +6,9 @@ from app.database.models import ResearchSession, Task, Company, ResearchType, Se
 from app.scrapers.company_website_scraper import CompanyWebsiteScraper
 from datetime import datetime
 from bson import ObjectId
+from app.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 class ResearchService:
     # Map common research type inputs to valid ResearchType values
@@ -26,22 +29,29 @@ class ResearchService:
     def start_research(self, company_name: str, research_type: str, 
                       target_person: str = None, context: str = None):
         """Start a new research session"""
+        logger.info(f"Starting research for company: {company_name}, type: {research_type}")
+        
         # Map the research type to a valid value
         mapped_research_type = self.RESEARCH_TYPE_MAPPING.get(research_type.lower())
         if not mapped_research_type:
             valid_types = list(self.RESEARCH_TYPE_MAPPING.keys())
+            logger.error(f"Invalid research type: {research_type}. Valid types are: {', '.join(valid_types)}")
             raise ValueError(f"Invalid research type. Valid types are: {', '.join(valid_types)}")
 
         # First, find or create the company
         company = Company.find_by_name(company_name, self.db)
         if not company:
+            logger.info(f"Company {company_name} not found, creating new entry")
             # Create a new company if it doesn't exist
             company = Company(
                 name=company_name,
                 domain=self._extract_domain(company_name),  # You might want to improve this
                 status='pending_research'
             )
-            company.save(self.db)
+            if not company.save(self.db):
+                logger.error(f"Failed to save company: {company_name}")
+                raise ValueError("Failed to save company")
+            logger.info(f"Created new company with ID: {company._id}")
         
         # Create the research session
         session = ResearchSession(
@@ -50,7 +60,10 @@ class ResearchService:
             status=SessionStatus.PLANNED,
             created_at=datetime.utcnow()
         )
-        session.save(self.db)
+        if not session.save(self.db):
+            logger.error("Failed to save research session")
+            raise ValueError("Failed to save research session")
+        logger.info(f"Created research session with ID: {session._id}")
         
         # Create initial research tasks
         self._create_research_tasks(session)
@@ -68,6 +81,7 @@ class ResearchService:
     
     def _create_research_tasks(self, session):
         """Create appropriate tasks based on research type"""
+        logger.info(f"Creating tasks for session {session._id}")
         base_tasks = [
             {'type': TaskType.DATA_COLLECTION, 'title': 'Scrape company website'},
             {'type': TaskType.DATA_COLLECTION, 'title': 'Get official company data'},
@@ -98,18 +112,31 @@ class ResearchService:
                 status='pending',
                 created_at=datetime.utcnow()
             )
-            task.save(self.db)
+            if not task.save(self.db):
+                logger.error(f"Failed to save task: {task_data['title']}")
+                continue
+            logger.info(f"Created task: {task.title} with ID: {task._id}")
+            session.add_task(task._id)
+        
+        # Update session with task IDs
+        if not session.save(self.db):
+            logger.error("Failed to update session with task IDs")
     
     def get_session_status(self, session_id: str):
         """Get comprehensive session status"""
+        logger.info(f"Getting status for session: {session_id}")
         session = ResearchSession.find_by_id(session_id, self.db)
         if not session:
+            logger.error(f"Session not found: {session_id}")
             raise ValueError("Session not found")
         
         tasks = Task.find_by_session(session_id, self.db)
+        logger.info(f"Found {len(tasks)} tasks for session {session_id}")
         
         # Get company information
-        company = Company.find_by_id(session.target_company_id, self.db)
+        company = Company.find_by_id(str(session.target_company_id), self.db)
+        if not company:
+            logger.warning(f"Company not found for session {session_id}")
         
         return {
             'session_id': session_id,
@@ -127,11 +154,14 @@ class ResearchService:
     
     def get_session_results(self, session_id: str):
         """Get results from completed research session"""
+        logger.info(f"Getting results for session: {session_id}")
         session = ResearchSession.find_by_id(session_id, self.db)
         if not session:
+            logger.error(f"Session not found: {session_id}")
             raise ValueError("Session not found")
         
-        if session.status != 'completed':
+        if session.status != SessionStatus.COMPLETED:
+            logger.info(f"Session {session_id} is still in progress")
             return {
                 'session_id': session_id,
                 'status': session.status,
@@ -139,7 +169,7 @@ class ResearchService:
             }
         
         tasks = Task.find_by_session(session_id, self.db)
-        company = Company.find_by_id(session.target_company_id, self.db)
+        company = Company.find_by_id(str(session.target_company_id), self.db)
         
         results = {
             'session_id': session_id,
@@ -163,5 +193,5 @@ class ResearchService:
         if not tasks:
             return 0
         
-        completed = sum(1 for task in tasks if task.status == 'completed')
+        completed = sum(1 for task in tasks if task.status == TaskStatus.COMPLETED)
         return int((completed / len(tasks)) * 100) 

@@ -6,6 +6,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from app.utils.logger import setup_logger
 from app.database.connection import DatabaseManager
+from app.utils.db_init import DatabaseInitializer
 import redis
 import os
 
@@ -57,15 +58,41 @@ def create_app(config_name='development'):
     # Set up logging
     app.logger = setup_logger('flask.app', app.config.get('LOG_LEVEL', 'INFO'))
     
-    # Initialize database
-    app.db = DatabaseManager(app.config['MONGODB_URI'])
+    # Initialize database connection as a global object
+    mongodb_uri = app.config.get('MONGODB_URI', 'mongodb://localhost:27017/company_research')
+    app.db = DatabaseManager(mongodb_uri)
+    
+    # Ensure database connection and initialization
     if not app.db.connect():
         logger.error("Failed to connect to MongoDB")
         raise RuntimeError("Failed to connect to MongoDB")
+        
+    # Initialize database (create indexes, etc.)
+    initializer = DatabaseInitializer(app.db)
+    if not initializer.initialize_database():
+        logger.error("Failed to initialize database")
+        raise RuntimeError("Failed to initialize database")
+        
+    logger.info("Successfully connected to MongoDB and initialized database")
     
     # Register blueprints
     from app.api.routes import api_bp
     app.register_blueprint(api_bp, url_prefix='/api')
+    
+    @app.before_request
+    def ensure_db_connection():
+        """Ensure database connection is active before each request"""
+        if not app.db.health_check():
+            logger.warning("Database connection lost, attempting to reconnect...")
+            if not app.db.connect():
+                logger.error("Failed to reconnect to database")
+                return jsonify({"error": "Database connection error"}), 503
+    
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        """Clean up database connection"""
+        if hasattr(app, 'db'):
+            app.db.disconnect()
     
     @app.route('/health')
     def health_check():
