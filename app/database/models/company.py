@@ -1,5 +1,6 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from ..base import BaseDocument
+from bson import ObjectId
 
 class Company(BaseDocument):
     """Company document model"""
@@ -19,6 +20,7 @@ class Company(BaseDocument):
         self.opencorporates_data: Dict[str, Any] = kwargs.get('opencorporates_data', {})
         self.company_number: str = kwargs.get('company_number', '')
         self.jurisdiction: str = kwargs.get('jurisdiction', '')
+        self.status: str = kwargs.get('status', 'active')
         
     def validate(self) -> bool:
         """Validate required fields"""
@@ -43,6 +45,28 @@ class Company(BaseDocument):
             'website_data': self.website_data,
             'opencorporates_data': self.opencorporates_data,
             'company_number': self.company_number,
-            'jurisdiction': self.jurisdiction
+            'jurisdiction': self.jurisdiction,
+            'status': self.status
         }
-        return {**base_dict, **company_dict} 
+        return {**base_dict, **company_dict}
+    
+    @classmethod
+    def find_by_name(cls, name: str, db_manager) -> Optional['Company']:
+        """Find a company by name"""
+        collection = db_manager.get_collection(cls.collection_name)
+        result = collection.find_one({'name': name})
+        if result:
+            return cls.from_dict(result)
+        return None
+    
+    @classmethod
+    def search(cls, query: str, db_manager, limit: int = 20) -> List['Company']:
+        """Search for companies by name or domain"""
+        collection = db_manager.get_collection(cls.collection_name)
+        results = collection.find({
+            '$or': [
+                {'name': {'$regex': query, '$options': 'i'}},
+                {'domain': {'$regex': query, '$options': 'i'}}
+            ]
+        }).limit(limit)
+        return [cls.from_dict(doc) for doc in results] 
