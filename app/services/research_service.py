@@ -2,9 +2,10 @@
 Research service for managing research sessions and tasks.
 """
 
-from app.database.models import ResearchSession, Task
+from app.database.models import ResearchSession, Task, Company, ResearchType, SessionStatus
 from app.scrapers.company_website_scraper import CompanyWebsiteScraper
 from datetime import datetime
+from bson import ObjectId
 
 class ResearchService:
     def __init__(self, db_manager):
@@ -14,11 +15,22 @@ class ResearchService:
     def start_research(self, company_name: str, research_type: str, 
                       target_person: str = None, context: str = None):
         """Start a new research session"""
+        # First, find or create the company
+        company = Company.find_by_name(company_name, self.db)
+        if not company:
+            # Create a new company if it doesn't exist
+            company = Company(
+                name=company_name,
+                domain=self._extract_domain(company_name),  # You might want to improve this
+                status='pending_research'
+            )
+            company.save(self.db)
+        
+        # Create the research session
         session = ResearchSession(
             research_type=research_type,
-            target_company=company_name,
-            target_person=target_person,
-            status='started',
+            target_company_id=company._id,
+            status=SessionStatus.PLANNED,
             created_at=datetime.utcnow()
         )
         session.save(self.db)
@@ -27,6 +39,15 @@ class ResearchService:
         self._create_research_tasks(session)
         
         return session
+    
+    def _extract_domain(self, company_name: str) -> str:
+        """Extract a potential domain from company name (temporary solution)"""
+        # Remove common company suffixes and spaces
+        name = company_name.lower()
+        for suffix in [' inc', ' corp', ' llc', ' ltd']:
+            name = name.replace(suffix, '')
+        # Convert spaces to dashes and add .com
+        return f"{name.replace(' ', '-')}.com"
     
     def _create_research_tasks(self, session):
         """Create appropriate tasks based on research type"""
@@ -59,11 +80,18 @@ class ResearchService:
         
         tasks = Task.find_by_session(session_id, self.db)
         
+        # Get company information
+        company = Company.find_by_id(session.target_company_id, self.db)
+        
         return {
             'session_id': session_id,
             'status': session.status,
             'research_type': session.research_type,
-            'target_company': session.target_company,
+            'company': {
+                'id': str(company._id),
+                'name': company.name,
+                'domain': company.domain
+            } if company else None,
             'created_at': session.created_at.isoformat(),
             'tasks': [task.to_dict() for task in tasks],
             'progress': self._calculate_progress(tasks)
@@ -83,11 +111,17 @@ class ResearchService:
             }
         
         tasks = Task.find_by_session(session_id, self.db)
+        company = Company.find_by_id(session.target_company_id, self.db)
+        
         results = {
             'session_id': session_id,
             'status': session.status,
             'research_type': session.research_type,
-            'target_company': session.target_company,
+            'company': {
+                'id': str(company._id),
+                'name': company.name,
+                'domain': company.domain
+            } if company else None,
             'created_at': session.created_at.isoformat(),
             'completed_at': session.completed_at.isoformat() if session.completed_at else None,
             'tasks': [task.to_dict() for task in tasks],
