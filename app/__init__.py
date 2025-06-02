@@ -8,7 +8,8 @@ from app.utils.logger import setup_logger
 from app.database.connection import DatabaseManager
 import redis
 import os
-import logging
+
+logger = setup_logger(__name__)
 
 def check_mongodb():
     """Check MongoDB connection"""
@@ -18,6 +19,7 @@ def check_mongodb():
             return {"status": "healthy"}
         return {"status": "unhealthy", "message": "Failed to connect to MongoDB"}
     except Exception as e:
+        logger.error(f"MongoDB health check failed: {str(e)}")
         return {"status": "unhealthy", "message": str(e)}
     finally:
         if db_manager:
@@ -31,6 +33,7 @@ def check_redis():
         client.ping()
         return {"status": "healthy"}
     except Exception as e:
+        logger.error(f"Redis health check failed: {str(e)}")
         return {"status": "unhealthy", "message": str(e)}
 
 def create_app(config_name='development'):
@@ -52,11 +55,13 @@ def create_app(config_name='development'):
     CORS(app)
     
     # Set up logging
-    logging.basicConfig(level=app.config.get('LOG_LEVEL', 'INFO'))
+    app.logger = setup_logger('flask.app', app.config.get('LOG_LEVEL', 'INFO'))
     
     # Initialize database
     app.db = DatabaseManager(app.config['MONGODB_URI'])
-    app.db.connect()
+    if not app.db.connect():
+        logger.error("Failed to connect to MongoDB")
+        raise RuntimeError("Failed to connect to MongoDB")
     
     # Register blueprints
     from app.api.routes import api_bp
