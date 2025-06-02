@@ -11,15 +11,17 @@ class BaseDocument:
     
     def __init__(self, **kwargs):
         self._id: Optional[ObjectId] = kwargs.get('_id')
+        if isinstance(self._id, str):
+            self._id = ObjectId(self._id)
         self.created_at: datetime = kwargs.get('created_at', datetime.utcnow())
         self.updated_at: datetime = kwargs.get('updated_at', datetime.utcnow())
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert document to dictionary"""
         return {
-            '_id': self._id,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
+            '_id': str(self._id) if self._id else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
     @classmethod
@@ -45,6 +47,10 @@ class BaseDocument:
         self.updated_at = datetime.utcnow()
         
         data = self.to_dict()
+        # Convert string IDs back to ObjectId for MongoDB
+        if '_id' in data and isinstance(data['_id'], str):
+            data['_id'] = ObjectId(data['_id'])
+            
         if self._id:
             result = collection.replace_one({'_id': self._id}, data)
             return result.modified_count > 0

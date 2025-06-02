@@ -53,12 +53,12 @@ class ResearchSession(BaseDocument):
         base_dict = super().to_dict()
         session_dict = {
             'research_type': self.research_type,
-            'target_company_id': self.target_company_id,
+            'target_company_id': str(self.target_company_id) if self.target_company_id else None,
             'status': self.status,
             'findings': self.findings,
-            'task_ids': self.task_ids,
+            'task_ids': [str(task_id) for task_id in self.task_ids],
             'progress': self.progress,
-            'completed_at': self.completed_at
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
         return {**base_dict, **session_dict}
         
