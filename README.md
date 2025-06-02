@@ -1,124 +1,162 @@
-# Company Research Tool
+# Company Research Tool - Web Scraping Infrastructure
 
-A Flask-based web application for researching companies using various data sources.
+A robust and respectful web scraping system for gathering company information from websites and the OpenCorporates API.
 
-## Prerequisites
+## Features
 
-- Python 3.11 or higher
-- Docker and Docker Compose
-- Git
+- HTTP-based scraping with requests and BeautifulSoup
+- OpenCorporates API integration
+- Rate limiting and respectful scraping practices
+- User-agent rotation and header management
+- Error handling and retry logic
+- Robots.txt compliance checking
+- Structured data extraction
 
-## Project Structure
-
-```
-./
-├── .env.example          # Example environment variables
-├── .gitignore           # Git ignore file
-├── requirements.txt     # Main project dependencies
-├── requirements-dev.txt # Development dependencies
-├── docker-compose.yml  # Docker services configuration
-├── config.py          # Application configuration
-├── app/              # Main application package
-│   ├── __init__.py
-│   ├── config.py
-│   └── utils/
-│       ├── __init__.py
-│       └── logger.py
-├── tests/           # Test suite
-│   ├── __init__.py
-│   └── conftest.py
-└── scripts/        # Development and utility scripts
-    └── setup_dev.py
-```
-
-## Getting Started
+## Installation
 
 1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd company_research_tool
-   ```
-
-2. Run the development setup script:
-   ```bash
-   python scripts/setup_dev.py
-   ```
-   This script will:
-   - Check Python version
-   - Create a virtual environment
-   - Install dependencies
-   - Set up environment variables
-   - Start Docker services (MongoDB and Redis)
-
-3. Activate the virtual environment:
-   ```bash
-   source venv/bin/activate
-   ```
-
-4. Start the development server:
-   ```bash
-   flask run
-   ```
-
-## Development
-
-### Environment Variables
-
-Copy the example environment file and modify as needed:
 ```bash
-cp env.example .env
+git clone <repository-url>
+cd company-research-tool
 ```
 
-Key environment variables:
-- `FLASK_ENV`: Set to 'development' for development mode
-- `MONGODB_URI`: MongoDB connection string
-- `REDIS_URL`: Redis connection string
-- `API_KEY_1`, `API_KEY_2`: API keys for external services
-
-### Docker Services
-
-The project uses Docker Compose to manage:
-- MongoDB (port 27017)
-- Redis (port 6379)
-
-Start services:
+2. Install dependencies:
 ```bash
-docker compose up -d
+pip install -r requirements.txt
 ```
 
-Stop services:
-```bash
-docker compose down
+## Usage
+
+### Basic Example
+
+```python
+from app.scrapers.company_website_scraper import CompanyWebsiteScraper
+from app.scrapers.opencorporates_scraper import OpenCorporatesScraper
+
+# Initialize scrapers
+website_scraper = CompanyWebsiteScraper()
+oc_scraper = OpenCorporatesScraper(api_key='your_api_key')  # API key optional
+
+# Scrape company website
+company_info = website_scraper.scrape_company_info('example.com')
+
+# Search OpenCorporates
+companies = oc_scraper.search_companies('Example Company Inc', jurisdiction='us_de')
 ```
 
-### Testing
+### Example Script
 
-Run tests with pytest:
-```bash
-pytest
+See `examples/company_research.py` for a complete example of how to use the scraping infrastructure.
+
+## Components
+
+### Base Scraper
+- Rate limiting
+- Error handling
+- Retry logic
+- Header management
+
+### Company Website Scraper
+- Extracts company information from websites
+- Finds and scrapes relevant pages (About, Contact, Team, Careers)
+- Structured data extraction
+
+### OpenCorporates Scraper
+- Company search
+- Detailed company information
+- Officer and director information
+- Company filings
+
+### Utilities
+- HTML parsing
+- Rate limiting
+- Robots.txt checking
+
+## Configuration
+
+### Rate Limiting
+Configure rate limiting in the scraper initialization:
+```python
+scraper = CompanyWebsiteScraper(delay_range=(2, 4))  # 2-4 seconds between requests
 ```
 
-Run tests with coverage:
-```bash
-pytest --cov=app tests/
+### OpenCorporates API
+Set your API key when initializing the OpenCorporates scraper:
+```python
+scraper = OpenCorporatesScraper(api_key='your_api_key')
 ```
 
-### Code Style
+## Best Practices
 
-The project uses:
-- Black for code formatting
-- Flake8 for linting
+1. Always respect robots.txt
+2. Use reasonable delays between requests
+3. Handle errors gracefully
+4. Log all scraping activity
+5. Use appropriate user agents
+6. Check terms of service for target websites
 
-Format code:
-```bash
-black .
+## Data Structure
+
+### Company Website Data
+```python
+{
+    'domain': str,
+    'about_text': str,
+    'contact_info': {
+        'emails': List[str],
+        'phones': List[str],
+        'addresses': List[str],
+        'social_links': Dict[str, str]
+    },
+    'team_members': List[Dict],
+    'careers_page': str,
+    'job_listings': List[Dict],
+    'company_size_hints': List[str],
+    'locations': List[str],
+    'social_links': Dict[str, str],
+    'metadata': Dict[str, str]
+}
 ```
 
-Run linter:
-```bash
-flake8
+### OpenCorporates Data
+```python
+{
+    'details': Dict,
+    'officers': List[Dict],
+    'filings': List[Dict]
+}
 ```
+
+## Error Handling
+
+The infrastructure includes comprehensive error handling:
+- Network errors
+- Rate limiting
+- Invalid responses
+- Missing data
+- API errors
+
+## Logging
+
+Logging is configured to track:
+- Scraping activity
+- Errors and warnings
+- Rate limiting
+- API calls
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
 ## License
 
-[Your License Here]
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- OpenCorporates API
+- Beautiful Soup
+- Requests library

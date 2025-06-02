@@ -1,8 +1,23 @@
+# Web framework and server
 Flask==3.0.2
 gunicorn==21.2.0
+
+# Database and caching
 pymongo==4.6.1
 redis==5.0.1
+
+# Task queue
 celery==5.3.6
+
+# Configuration
 python-dotenv==1.0.1
-requests==2.31.0
-beautifulsoup4==4.12.3 
+
+# Web scraping and parsing
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Utilities
+python-dateutil>=2.8.0
+urllib3>=2.0.0
+typing-extensions>=4.5.0 
