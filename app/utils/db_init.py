@@ -82,8 +82,6 @@ class DatabaseInitializer:
         except Exception as e:
             logger.error(f"Database initialization failed: {str(e)}")
             return False
-        finally:
-            self.db_manager.disconnect()
 
 def init_database(connection_string: str) -> bool:
     """Initialize the database with the given connection string"""

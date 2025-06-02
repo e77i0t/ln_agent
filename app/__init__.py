@@ -59,21 +59,30 @@ def create_app(config_name='development'):
     app.logger = setup_logger('flask.app', app.config.get('LOG_LEVEL', 'INFO'))
     
     # Initialize database connection as a global object
-    mongodb_uri = app.config.get('MONGODB_URI', 'mongodb://localhost:27017/company_research')
+    mongodb_uri = app.config.get('MONGODB_URI', 'mongodb://admin:adminpassword@mongodb:27017/company_research?authSource=admin')
     app.db = DatabaseManager(mongodb_uri)
     
     # Ensure database connection and initialization
-    if not app.db.connect():
-        logger.error("Failed to connect to MongoDB")
-        raise RuntimeError("Failed to connect to MongoDB")
-        
-    # Initialize database (create indexes, etc.)
-    initializer = DatabaseInitializer(app.db)
-    if not initializer.initialize_database():
-        logger.error("Failed to initialize database")
-        raise RuntimeError("Failed to initialize database")
-        
-    logger.info("Successfully connected to MongoDB and initialized database")
+    max_retries = 3
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            if app.db.connect():
+                # Initialize database (create indexes, etc.)
+                initializer = DatabaseInitializer(app.db)
+                if initializer.initialize_database():
+                    logger.info("Successfully connected to MongoDB and initialized database")
+                    break
+            retry_count += 1
+            if retry_count < max_retries:
+                logger.warning(f"Retrying database connection (attempt {retry_count + 1}/{max_retries})")
+        except Exception as e:
+            logger.error(f"Database connection attempt {retry_count + 1} failed: {str(e)}")
+            retry_count += 1
+
+    if retry_count >= max_retries:
+        logger.error("Failed to initialize database after multiple attempts")
+        raise RuntimeError("Failed to initialize database after multiple attempts")
     
     # Register blueprints
     from app.api.routes import api_bp

@@ -31,15 +31,30 @@ class DatabaseManager:
                     serverSelectionTimeoutMS=5000,  # 5 second timeout
                     connectTimeoutMS=5000,
                     retryWrites=True,
-                    w='majority'
+                    w='majority',
+                    retryReads=True,
+                    maxPoolSize=50,
+                    minPoolSize=10,
+                    waitQueueTimeoutMS=5000,
+                    appname='CompanyResearchTool'
                 )
-                # Test the connection
+                # Test the connection with auth
                 self.client.admin.command('ping')
                 self.db = self.client[self.database_name]
                 logger.info(f"Successfully connected to MongoDB: {self.database_name}")
                 return True
+            elif self.health_check():  # If client exists, verify it's healthy
+                return True
+            else:  # If client exists but unhealthy, reconnect
+                self.disconnect()
+                return self.connect()
         except (ConnectionFailure, ServerSelectionTimeoutError) as e:
             logger.error(f"Failed to connect to MongoDB: {str(e)}")
+            self.client = None
+            self.db = None
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error connecting to MongoDB: {str(e)}")
             self.client = None
             self.db = None
             return False
