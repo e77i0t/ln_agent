@@ -21,7 +21,7 @@ class ResearchService:
             status='started',
             created_at=datetime.utcnow()
         )
-        session.save()
+        session.save(self.db)
         
         # Create initial research tasks
         self._create_research_tasks(session)
@@ -49,15 +49,15 @@ class ResearchService:
                 status='pending',
                 created_at=datetime.utcnow()
             )
-            task.save()
+            task.save(self.db)
     
     def get_session_status(self, session_id: str):
         """Get comprehensive session status"""
-        session = ResearchSession.find_by_id(session_id)
+        session = ResearchSession.find_by_id(session_id, self.db)
         if not session:
             raise ValueError("Session not found")
         
-        tasks = Task.find_by_session(session_id)
+        tasks = Task.find_by_session(session_id, self.db)
         
         return {
             'session_id': session_id,
@@ -71,7 +71,7 @@ class ResearchService:
     
     def get_session_results(self, session_id: str):
         """Get results from completed research session"""
-        session = ResearchSession.find_by_id(session_id)
+        session = ResearchSession.find_by_id(session_id, self.db)
         if not session:
             raise ValueError("Session not found")
         
@@ -82,7 +82,7 @@ class ResearchService:
                 'message': 'Research is still in progress'
             }
         
-        tasks = Task.find_by_session(session_id)
+        tasks = Task.find_by_session(session_id, self.db)
         results = {
             'session_id': session_id,
             'status': session.status,
