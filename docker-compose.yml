@@ -64,7 +64,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.app
     environment:
       - PORT=5280
       - GUNICORN_CMD_ARGS=--bind=0.0.0.0:5280 --workers=2 --threads=4 --worker-class=gthread
@@ -77,6 +77,7 @@ services:
       - .env
     volumes:
       - .:/app
+      - app_tmp:/app/tmp
     ports:
       - "5280:5280"
     expose:
@@ -98,9 +99,7 @@ services:
   celery_worker:
     build:
       context: .
-      dockerfile: Dockerfile
-    working_dir: /app
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+      dockerfile: Dockerfile.celery
     environment:
       - REDIS_URL=redis://redis:6379
       - CELERY_BROKER_URL=redis://redis:6379
@@ -116,8 +115,10 @@ services:
     tmpfs:
       - /app/tmp:mode=777,size=256M
     depends_on:
-      - redis
-      - mongodb
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - app_network
     deploy:
@@ -134,4 +135,5 @@ networks:
 volumes:
   redis_data:
   mongodb_data:
-  celery_tmp: 
+  celery_tmp:
+  app_tmp: 
