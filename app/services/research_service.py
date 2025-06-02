@@ -2,7 +2,7 @@
 Research service for managing research sessions and tasks.
 """
 
-from app.database.models import ResearchSession, Task, Company, ResearchType, SessionStatus, TaskType
+from app.database.models import ResearchSession, Task, Company, ResearchType, SessionStatus, TaskType, TaskStatus
 from app.scrapers.company_website_scraper import CompanyWebsiteScraper
 from datetime import datetime
 from bson import ObjectId
@@ -83,44 +83,52 @@ class ResearchService:
         """Create appropriate tasks based on research type"""
         logger.info(f"Creating tasks for session {session._id}")
         base_tasks = [
-            {'type': TaskType.DATA_COLLECTION, 'title': 'Scrape company website'},
-            {'type': TaskType.DATA_COLLECTION, 'title': 'Get official company data'},
-            {'type': TaskType.ANALYSIS, 'title': 'Extract company metadata'},
+            {'task_type': TaskType.DATA_COLLECTION, 'title': 'Scrape company website'},
+            {'task_type': TaskType.DATA_COLLECTION, 'title': 'Get official company data'},
+            {'task_type': TaskType.ANALYSIS, 'title': 'Extract company metadata'},
         ]
         
         if session.research_type == ResearchType.COMPANY_PROFILE:
             base_tasks.extend([
-                {'type': TaskType.DATA_COLLECTION, 'title': 'Find key contacts'},
-                {'type': TaskType.ANALYSIS, 'title': 'Analyze company profile'}
+                {'task_type': TaskType.DATA_COLLECTION, 'title': 'Find key contacts'},
+                {'task_type': TaskType.ANALYSIS, 'title': 'Analyze company profile'}
             ])
         elif session.research_type == ResearchType.MARKET_ANALYSIS:
             base_tasks.extend([
-                {'type': TaskType.RESEARCH, 'title': 'Research market size and trends'},
-                {'type': TaskType.ANALYSIS, 'title': 'Map key competitors'}
+                {'task_type': TaskType.RESEARCH, 'title': 'Research market size and trends'},
+                {'task_type': TaskType.ANALYSIS, 'title': 'Map key competitors'}
             ])
         elif session.research_type == ResearchType.COMPETITOR_ANALYSIS:
             base_tasks.extend([
-                {'type': TaskType.RESEARCH, 'title': 'Identify main competitors'},
-                {'type': TaskType.ANALYSIS, 'title': 'Analyze competitor strengths and weaknesses'}
+                {'task_type': TaskType.RESEARCH, 'title': 'Identify main competitors'},
+                {'task_type': TaskType.ANALYSIS, 'title': 'Analyze competitor strengths and weaknesses'}
             ])
         
+        created_tasks = []
         for task_data in base_tasks:
-            task = Task(
-                session_id=session._id,
-                task_type=task_data['type'],
-                title=task_data['title'],
-                status='pending',
-                created_at=datetime.utcnow()
-            )
-            if not task.save(self.db):
-                logger.error(f"Failed to save task: {task_data['title']}")
-                continue
-            logger.info(f"Created task: {task.title} with ID: {task._id}")
-            session.add_task(task._id)
+            try:
+                task = Task(
+                    session_id=session._id,
+                    task_type=task_data['task_type'],
+                    title=task_data['title'],
+                    status=TaskStatus.PENDING,
+                    created_at=datetime.utcnow()
+                )
+                if task.save(self.db):
+                    logger.info(f"Created task: {task.title} with ID: {task._id}")
+                    session.add_task(task._id)
+                    created_tasks.append(task)
+                else:
+                    logger.error(f"Failed to save task: {task_data['title']}")
+            except Exception as e:
+                logger.error(f"Error creating task '{task_data['title']}': {str(e)}")
         
         # Update session with task IDs
-        if not session.save(self.db):
-            logger.error("Failed to update session with task IDs")
+        if created_tasks:
+            if not session.save(self.db):
+                logger.error("Failed to update session with task IDs")
+        else:
+            logger.error("No tasks were created for the session")
     
     def get_session_status(self, session_id: str):
         """Get comprehensive session status"""
