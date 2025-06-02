@@ -8,6 +8,17 @@ from datetime import datetime
 from bson import ObjectId
 
 class ResearchService:
+    # Map common research type inputs to valid ResearchType values
+    RESEARCH_TYPE_MAPPING = {
+        'general': ResearchType.COMPANY_PROFILE,
+        'company_profile': ResearchType.COMPANY_PROFILE,
+        'market': ResearchType.MARKET_ANALYSIS,
+        'market_analysis': ResearchType.MARKET_ANALYSIS,
+        'competitor': ResearchType.COMPETITOR_ANALYSIS,
+        'competitor_analysis': ResearchType.COMPETITOR_ANALYSIS,
+        'custom': ResearchType.CUSTOM
+    }
+
     def __init__(self, db_manager):
         self.db = db_manager
         self.scraper = CompanyWebsiteScraper()
@@ -15,6 +26,12 @@ class ResearchService:
     def start_research(self, company_name: str, research_type: str, 
                       target_person: str = None, context: str = None):
         """Start a new research session"""
+        # Map the research type to a valid value
+        mapped_research_type = self.RESEARCH_TYPE_MAPPING.get(research_type.lower())
+        if not mapped_research_type:
+            valid_types = list(self.RESEARCH_TYPE_MAPPING.keys())
+            raise ValueError(f"Invalid research type. Valid types are: {', '.join(valid_types)}")
+
         # First, find or create the company
         company = Company.find_by_name(company_name, self.db)
         if not company:
@@ -28,7 +45,7 @@ class ResearchService:
         
         # Create the research session
         session = ResearchSession(
-            research_type=research_type,
+            research_type=mapped_research_type,
             target_company_id=company._id,
             status=SessionStatus.PLANNED,
             created_at=datetime.utcnow()
@@ -57,10 +74,21 @@ class ResearchService:
             {'type': 'company_info', 'title': 'Extract company metadata'},
         ]
         
-        if session.research_type == 'sales_lead':
-            base_tasks.append({'type': 'contact_discovery', 'title': 'Find key contacts'})
-        elif session.research_type == 'job_application':
-            base_tasks.append({'type': 'job_analysis', 'title': 'Analyze job opportunities'})
+        if session.research_type == ResearchType.COMPANY_PROFILE:
+            base_tasks.extend([
+                {'type': 'contact_discovery', 'title': 'Find key contacts'},
+                {'type': 'company_analysis', 'title': 'Analyze company profile'}
+            ])
+        elif session.research_type == ResearchType.MARKET_ANALYSIS:
+            base_tasks.extend([
+                {'type': 'market_research', 'title': 'Research market size and trends'},
+                {'type': 'competitor_mapping', 'title': 'Map key competitors'}
+            ])
+        elif session.research_type == ResearchType.COMPETITOR_ANALYSIS:
+            base_tasks.extend([
+                {'type': 'competitor_discovery', 'title': 'Identify main competitors'},
+                {'type': 'competitor_analysis', 'title': 'Analyze competitor strengths and weaknesses'}
+            ])
         
         for task_data in base_tasks:
             task = Task(
