@@ -18,10 +18,20 @@ class BaseDocument:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert document to dictionary"""
+        def format_datetime(dt):
+            if dt is None:
+                return None
+            if isinstance(dt, str):
+                return dt
+            try:
+                return dt.isoformat()
+            except AttributeError:
+                return None
+
         return {
             '_id': str(self._id) if self._id else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': format_datetime(self.created_at),
+            'updated_at': format_datetime(self.updated_at)
         }
     
     @classmethod
@@ -29,6 +39,15 @@ class BaseDocument:
         """Create instance from dictionary"""
         if '_id' in data and isinstance(data['_id'], str):
             data['_id'] = ObjectId(data['_id'])
+        
+        # Handle datetime fields
+        for field in ['created_at', 'updated_at', 'completed_at']:
+            if field in data and isinstance(data[field], str):
+                try:
+                    data[field] = datetime.fromisoformat(data[field].replace('Z', '+00:00'))
+                except (ValueError, AttributeError):
+                    data[field] = None
+        
         return cls(**data)
     
     def validate(self) -> bool:
