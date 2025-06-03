@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Any, Optional, Type, TypeVar
+from typing import Dict, Any, Optional, Type, TypeVar, List, Union
 from bson import ObjectId
 from .connection import DatabaseManager
 
@@ -18,30 +18,34 @@ class BaseDocument:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert document to dictionary"""
-        def format_datetime(dt):
-            if dt is None:
-                return None
-            if isinstance(dt, str):
-                return dt
-            try:
-                return dt.isoformat()
-            except AttributeError:
-                return None
+        def format_value(value: Any) -> Any:
+            if isinstance(value, datetime):
+                return value.isoformat()
+            elif isinstance(value, ObjectId):
+                return str(value)
+            elif isinstance(value, list):
+                return [format_value(item) for item in value]
+            elif isinstance(value, dict):
+                return {k: format_value(v) for k, v in value.items()}
+            return value
 
         return {
-            '_id': str(self._id) if self._id else None,
-            'created_at': format_datetime(self.created_at),
-            'updated_at': format_datetime(self.updated_at)
+            '_id': format_value(self._id),
+            'created_at': format_value(self.created_at),
+            'updated_at': format_value(self.updated_at)
         }
     
     @classmethod
-    def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+    def from_dict(cls: Type[T], data: Dict[str, Any]) -> Optional[T]:
         """Create instance from dictionary"""
+        if not data:
+            return None
+            
         if '_id' in data and isinstance(data['_id'], str):
             data['_id'] = ObjectId(data['_id'])
         
         # Handle datetime fields
-        for field in ['created_at', 'updated_at', 'completed_at']:
+        for field in ['created_at', 'updated_at', 'completed_at', 'started_at', 'due_date', 'user_action_deadline']:
             if field in data and isinstance(data[field], str):
                 try:
                     data[field] = datetime.fromisoformat(data[field].replace('Z', '+00:00'))
@@ -65,11 +69,9 @@ class BaseDocument:
         collection = db_manager.get_collection(self.collection_name)
         self.updated_at = datetime.utcnow()
         
-        data = self.to_dict()
-        # Convert string IDs back to ObjectId for MongoDB
-        if '_id' in data and isinstance(data['_id'], str):
-            data['_id'] = ObjectId(data['_id'])
-            
+        # Convert to MongoDB-compatible format
+        data = self.to_mongo()
+        
         if self._id:
             result = collection.replace_one({'_id': self._id}, data)
             return result.modified_count > 0
@@ -79,6 +81,23 @@ class BaseDocument:
             result = collection.insert_one(data)
             self._id = result.inserted_id
             return bool(self._id)
+    
+    def to_mongo(self) -> Dict[str, Any]:
+        """Convert document to MongoDB-compatible format"""
+        def convert_value(value: Any) -> Any:
+            if isinstance(value, str) and len(value) == 24:  # Potential ObjectId string
+                try:
+                    return ObjectId(value)
+                except:
+                    return value
+            elif isinstance(value, list):
+                return [convert_value(item) for item in value]
+            elif isinstance(value, dict):
+                return {k: convert_value(v) for k, v in value.items()}
+            return value
+
+        data = self.to_dict()
+        return {k: convert_value(v) for k, v in data.items()}
     
     @classmethod
     def find_by_id(cls: Type[T], doc_id: str, db_manager: DatabaseManager) -> Optional[T]:

@@ -52,8 +52,14 @@ def create_app(config_name='development'):
     # Load configuration
     app.config.from_object(f'config.{config_name.title()}Config')
     
-    # Enable CORS
-    CORS(app)
+    # Enable CORS with proper configuration
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
     
     # Set up logging
     app.logger = setup_logger('flask.app', app.config.get('LOG_LEVEL', 'INFO'))

@@ -22,6 +22,7 @@ class APITester:
         self.session_id = None
         self.company_id = None
         self.test_results = []
+        self.task_id = None  # Added to track task ID for task management tests
         
     def log_test(self, name: str, passed: bool, response: requests.Response, error: Optional[str] = None):
         """Log test results with details"""
@@ -149,6 +150,101 @@ class APITester:
         except requests.RequestException as e:
             self.log_test("Company Endpoints", False, None, str(e))
 
+    def test_task_management(self):
+        """Test task management endpoints"""
+        try:
+            # First create a research session to get a session_id
+            payload = {
+                'company_name': 'Apple Inc.',
+                'research_type': 'general',
+                'target_person': 'Tim Cook',
+                'additional_context': 'Testing task management'
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/api/research/start",
+                json=payload,
+                headers={'Content-Type': 'application/json'}
+            )
+            
+            success = response.status_code == 201 and 'session_id' in response.json()
+            self.log_test("Create Research Session for Tasks", success, response)
+            
+            if success:
+                self.session_id = response.json()['session_id']
+                
+                # Get session status with tasks
+                response = requests.get(
+                    f"{self.base_url}/api/tasks/{self.session_id}/status"
+                )
+                success = response.status_code == 200
+                self.log_test("Get Session Status with Tasks", success, response)
+                
+                if success and response.json().get('task_breakdown', {}).get('pending'):
+                    # Get first pending task
+                    self.task_id = response.json()['task_breakdown']['pending'][0]['task_id']
+                    
+                    # Get task details
+                    response = requests.get(
+                        f"{self.base_url}/api/tasks/{self.task_id}"
+                    )
+                    self.log_test("Get Task Details", response.status_code == 200, response)
+                    
+                    # Update task status to in_progress
+                    update_payload = {
+                        'status': 'in_progress',
+                        'progress': 50,
+                        'current_step': 'Testing task updates'
+                    }
+                    response = requests.put(
+                        f"{self.base_url}/api/tasks/{self.task_id}/update",
+                        json=update_payload,
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    self.log_test("Update Task Status", response.status_code == 200, response)
+                    
+                    # Mark task as failed using the fail endpoint
+                    fail_payload = {
+                        'error_message': 'Test failure'
+                    }
+                    response = requests.post(
+                        f"{self.base_url}/api/tasks/{self.task_id}/fail",
+                        json=fail_payload,
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    self.log_test("Mark Task as Failed", response.status_code == 200, response)
+                    
+                    # Retry failed task
+                    response = requests.post(
+                        f"{self.base_url}/api/tasks/{self.task_id}/retry",
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    self.log_test("Retry Failed Task", response.status_code == 200, response)
+                    
+                    # Cancel task
+                    response = requests.post(
+                        f"{self.base_url}/api/tasks/{self.task_id}/cancel",
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    self.log_test("Cancel Task", response.status_code == 200, response)
+                else:
+                    self.log_test("Get Task Details", False, response, "No pending tasks found in session")
+                
+                # Check stale tasks
+                response = requests.get(
+                    f"{self.base_url}/api/tasks/stale"
+                )
+                self.log_test("Get Stale Tasks", response.status_code == 200, response)
+                
+                # Get dashboard overview
+                response = requests.get(
+                    f"{self.base_url}/api/tasks/dashboard"
+                )
+                self.log_test("Get Tasks Dashboard", response.status_code == 200, response)
+                
+        except requests.RequestException as e:
+            self.log_test("Task Management Tests", False, None, str(e))
+
     def test_error_handling(self):
         """Test various error conditions"""
         try:
@@ -206,6 +302,7 @@ class APITester:
         self.test_health_endpoints()
         self.test_research_workflow()
         self.test_company_endpoints()
+        self.test_task_management()  # Added task management tests
         self.test_error_handling()
         
         # Print summary

@@ -7,6 +7,7 @@ from app.scrapers.company_website_scraper import CompanyWebsiteScraper
 from datetime import datetime
 from bson import ObjectId
 from app.utils.logger import setup_logger
+from typing import List, Dict, Any
 
 logger = setup_logger(__name__)
 
@@ -111,22 +112,28 @@ class ResearchService:
                     session_id=session._id,
                     task_type=task_data['task_type'],
                     title=task_data['title'],
+                    description=task_data.get('description', ''),
                     status=TaskStatus.PENDING,
-                    created_at=datetime.utcnow()
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
                 )
                 if task.save(self.db):
                     logger.info(f"Created task: {task.title} with ID: {task._id}")
                     session.add_task(task._id)
-                    created_tasks.append(task)
+                    # Save session after each task to ensure task_ids are persisted
+                    if session.save(self.db):
+                        created_tasks.append(task)
+                        logger.info(f"Updated session {session._id} with task {task._id}")
+                    else:
+                        logger.error(f"Failed to update session with task: {task._id}")
+                        task.delete(self.db)  # Rollback task creation
                 else:
                     logger.error(f"Failed to save task: {task_data['title']}")
             except Exception as e:
                 logger.error(f"Error creating task '{task_data['title']}': {str(e)}")
         
-        # Update session with task IDs
         if created_tasks:
-            if not session.save(self.db):
-                logger.error("Failed to update session with task IDs")
+            logger.info(f"Created {len(created_tasks)} tasks for session {session._id}")
         else:
             logger.error("No tasks were created for the session")
     
@@ -137,7 +144,7 @@ class ResearchService:
             session = ResearchSession.find_by_id(session_id, self.db)
             if not session:
                 logger.error(f"Session not found: {session_id}")
-                raise ValueError("Session not found")
+                raise ValueError(f"Session not found: {session_id}")
             
             tasks = Task.find_by_session(session_id, self.db)
             logger.info(f"Found {len(tasks)} tasks for session {session_id}")
@@ -147,22 +154,81 @@ class ResearchService:
             if not company:
                 logger.warning(f"Company not found for session {session_id}")
             
+            # Calculate task statistics
+            task_stats = self._calculate_task_stats(tasks)
+            
             return {
                 'session_id': session_id,
                 'status': session.status,
                 'research_type': session.research_type,
                 'company': {
-                    'id': str(company._id),
-                    'name': company.name,
-                    'domain': company.domain
-                } if company else None,
+                    'id': str(company._id) if company else None,
+                    'name': company.name if company else None,
+                    'domain': company.domain if company else None
+                },
                 'created_at': session.created_at.isoformat(),
+                'updated_at': session.updated_at.isoformat(),
                 'tasks': [task.to_dict() for task in tasks],
+                'task_stats': task_stats,
                 'progress': self._calculate_progress(tasks)
             }
-        except Exception as e:
+        except ValueError as e:
             logger.error(f"Error getting session status: {str(e)}")
-            raise ValueError(f"Session not found: {session_id}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error getting session status: {str(e)}")
+            raise ValueError(f"Error retrieving session status: {str(e)}")
+    
+    def _calculate_task_stats(self, tasks: List[Task]) -> Dict[str, Any]:
+        """Calculate task statistics"""
+        stats = {
+            'total': len(tasks),
+            'by_status': {
+                'pending': 0,
+                'in_progress': 0,
+                'completed': 0,
+                'failed': 0,
+                'cancelled': 0,
+                'stale': 0
+            },
+            'completion_rate': 0
+        }
+        
+        for task in tasks:
+            stats['by_status'][task.status] = stats['by_status'].get(task.status, 0) + 1
+        
+        if stats['total'] > 0:
+            stats['completion_rate'] = (stats['by_status']['completed'] / stats['total']) * 100
+        
+        return stats
+    
+    def _calculate_progress(self, tasks: List[Task]) -> Dict[str, Any]:
+        """Calculate overall session progress"""
+        if not tasks:
+            return {
+                'percentage': 0,
+                'completed_tasks': 0,
+                'total_tasks': 0,
+                'status': 'no_tasks'
+            }
+        
+        completed = sum(1 for t in tasks if t.status == 'completed')
+        failed = sum(1 for t in tasks if t.status == 'failed')
+        in_progress = sum(1 for t in tasks if t.status == 'in_progress')
+        
+        total = len(tasks)
+        percentage = (completed / total) * 100 if total > 0 else 0
+        
+        status = 'completed' if completed == total else \
+                 'failed' if failed > 0 else \
+                 'in_progress' if in_progress > 0 else 'pending'
+        
+        return {
+            'percentage': percentage,
+            'completed_tasks': completed,
+            'total_tasks': total,
+            'status': status
+        }
     
     def get_session_results(self, session_id: str):
         """Get results from completed research session"""
@@ -198,12 +264,4 @@ class ResearchService:
             'findings': session.findings
         }
         
-        return results
-    
-    def _calculate_progress(self, tasks):
-        """Calculate overall progress percentage"""
-        if not tasks:
-            return 0
-        
-        completed = sum(1 for task in tasks if task.status == TaskStatus.COMPLETED)
-        return int((completed / len(tasks)) * 100) 
+        return results 
