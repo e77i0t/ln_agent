@@ -38,8 +38,11 @@ def handle_errors(f):
         try:
             return f(*args, **kwargs)
         except ValueError as e:
-            logger.error(f"Validation error: {str(e)}")
-            return jsonify({'error': str(e)}), 400
+            error_msg = str(e)
+            logger.error(f"Validation error: {error_msg}")
+            if "not found" in error_msg.lower():
+                return jsonify({'error': error_msg}), 404
+            return jsonify({'error': error_msg}), 400
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}")
             return jsonify({'error': 'Internal server error'}), 500

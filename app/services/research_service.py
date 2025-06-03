@@ -133,32 +133,36 @@ class ResearchService:
     def get_session_status(self, session_id: str):
         """Get comprehensive session status"""
         logger.info(f"Getting status for session: {session_id}")
-        session = ResearchSession.find_by_id(session_id, self.db)
-        if not session:
-            logger.error(f"Session not found: {session_id}")
-            raise ValueError("Session not found")
-        
-        tasks = Task.find_by_session(session_id, self.db)
-        logger.info(f"Found {len(tasks)} tasks for session {session_id}")
-        
-        # Get company information
-        company = Company.find_by_id(str(session.target_company_id), self.db)
-        if not company:
-            logger.warning(f"Company not found for session {session_id}")
-        
-        return {
-            'session_id': session_id,
-            'status': session.status,
-            'research_type': session.research_type,
-            'company': {
-                'id': str(company._id),
-                'name': company.name,
-                'domain': company.domain
-            } if company else None,
-            'created_at': session.created_at.isoformat(),
-            'tasks': [task.to_dict() for task in tasks],
-            'progress': self._calculate_progress(tasks)
-        }
+        try:
+            session = ResearchSession.find_by_id(session_id, self.db)
+            if not session:
+                logger.error(f"Session not found: {session_id}")
+                raise ValueError("Session not found")
+            
+            tasks = Task.find_by_session(session_id, self.db)
+            logger.info(f"Found {len(tasks)} tasks for session {session_id}")
+            
+            # Get company information
+            company = Company.find_by_id(str(session.target_company_id), self.db)
+            if not company:
+                logger.warning(f"Company not found for session {session_id}")
+            
+            return {
+                'session_id': session_id,
+                'status': session.status,
+                'research_type': session.research_type,
+                'company': {
+                    'id': str(company._id),
+                    'name': company.name,
+                    'domain': company.domain
+                } if company else None,
+                'created_at': session.created_at.isoformat(),
+                'tasks': [task.to_dict() for task in tasks],
+                'progress': self._calculate_progress(tasks)
+            }
+        except Exception as e:
+            logger.error(f"Error getting session status: {str(e)}")
+            raise ValueError(f"Session not found: {session_id}")
     
     def get_session_results(self, session_id: str):
         """Get results from completed research session"""

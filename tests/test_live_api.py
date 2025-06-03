@@ -176,15 +176,25 @@ class APITester:
                 response
             )
 
-            # Test invalid session ID
-            response = requests.get(
-                f"{self.base_url}/api/research/invalid_id/status"
-            )
-            self.log_test(
-                "Invalid Session ID Handling",
-                response.status_code == 400,
-                response
-            )
+            try:
+                # Test invalid session ID
+                response = requests.get(
+                    f"{self.base_url}/api/research/invalid_id/status"
+                )
+                success = response.status_code == 404 and 'error' in response.json()
+                self.log_test(
+                    "Invalid Session ID Handling",
+                    success,
+                    response,
+                    None if success else f"Expected 404 with error message, got {response.status_code}"
+                )
+            except requests.RequestException as e:
+                self.log_test(
+                    "Invalid Session ID Handling",
+                    False,
+                    None,
+                    f"Request failed: {str(e)}"
+                )
 
         except requests.RequestException as e:
             self.log_test("Error Handling", False, None, str(e))

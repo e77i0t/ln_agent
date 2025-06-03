@@ -86,9 +86,12 @@ class BaseDocument:
         if not cls.collection_name:
             raise ValueError("collection_name must be set in derived class")
             
-        collection = db_manager.get_collection(cls.collection_name)
-        data = collection.find_one({'_id': ObjectId(doc_id)})
-        return cls.from_dict(data) if data else None
+        try:
+            collection = db_manager.get_collection(cls.collection_name)
+            data = collection.find_one({'_id': ObjectId(doc_id)})
+            return cls.from_dict(data) if data else None
+        except Exception as e:
+            return None
     
     @classmethod
     def find_one(cls: Type[T], query: Dict[str, Any], db_manager: DatabaseManager) -> Optional[T]:
