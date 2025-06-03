@@ -35,7 +35,4 @@ RUN mkdir -p logs tmp && \
 COPY --chown=appuser:appuser . .
 
 # Switch to non-root user
-USER appuser
-
-# Command to run Celery worker
-CMD ["celery", "-A", "app.celery_app", "worker", "--loglevel=info", "--concurrency=2"] 
+USER appuser 
