@@ -11,15 +11,27 @@ class BaseDocument:
     
     def __init__(self, **kwargs):
         self._id: Optional[ObjectId] = kwargs.get('_id')
+        if isinstance(self._id, str):
+            self._id = ObjectId(self._id)
         self.created_at: datetime = kwargs.get('created_at', datetime.utcnow())
         self.updated_at: datetime = kwargs.get('updated_at', datetime.utcnow())
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert document to dictionary"""
+        def format_datetime(dt):
+            if dt is None:
+                return None
+            if isinstance(dt, str):
+                return dt
+            try:
+                return dt.isoformat()
+            except AttributeError:
+                return None
+
         return {
-            '_id': self._id,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
+            '_id': str(self._id) if self._id else None,
+            'created_at': format_datetime(self.created_at),
+            'updated_at': format_datetime(self.updated_at)
         }
     
     @classmethod
@@ -27,6 +39,15 @@ class BaseDocument:
         """Create instance from dictionary"""
         if '_id' in data and isinstance(data['_id'], str):
             data['_id'] = ObjectId(data['_id'])
+        
+        # Handle datetime fields
+        for field in ['created_at', 'updated_at', 'completed_at']:
+            if field in data and isinstance(data[field], str):
+                try:
+                    data[field] = datetime.fromisoformat(data[field].replace('Z', '+00:00'))
+                except (ValueError, AttributeError):
+                    data[field] = None
+        
         return cls(**data)
     
     def validate(self) -> bool:
@@ -45,6 +66,10 @@ class BaseDocument:
         self.updated_at = datetime.utcnow()
         
         data = self.to_dict()
+        # Convert string IDs back to ObjectId for MongoDB
+        if '_id' in data and isinstance(data['_id'], str):
+            data['_id'] = ObjectId(data['_id'])
+            
         if self._id:
             result = collection.replace_one({'_id': self._id}, data)
             return result.modified_count > 0
@@ -61,9 +86,12 @@ class BaseDocument:
         if not cls.collection_name:
             raise ValueError("collection_name must be set in derived class")
             
-        collection = db_manager.get_collection(cls.collection_name)
-        data = collection.find_one({'_id': ObjectId(doc_id)})
-        return cls.from_dict(data) if data else None
+        try:
+            collection = db_manager.get_collection(cls.collection_name)
+            data = collection.find_one({'_id': ObjectId(doc_id)})
+            return cls.from_dict(data) if data else None
+        except Exception as e:
+            return None
     
     @classmethod
     def find_one(cls: Type[T], query: Dict[str, Any], db_manager: DatabaseManager) -> Optional[T]:

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from bson import ObjectId
 from ..base import BaseDocument
@@ -48,12 +48,12 @@ class Task(BaseDocument):
         """Convert task to dictionary"""
         base_dict = super().to_dict()
         task_dict = {
-            'session_id': self.session_id,
+            'session_id': str(self.session_id) if self.session_id else None,
             'task_type': self.task_type,
             'title': self.title,
             'status': self.status,
             'progress': self.progress,
-            'completed_at': self.completed_at
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
         return {**base_dict, **task_dict}
         
@@ -61,4 +61,14 @@ class Task(BaseDocument):
         """Mark task as completed"""
         self.status = TaskStatus.COMPLETED
         self.progress = 100.0
-        self.completed_at = datetime.utcnow() 
+        self.completed_at = datetime.utcnow()
+
+    @classmethod
+    def find_by_session(cls, session_id: str, db_manager) -> List['Task']:
+        """Find all tasks for a given session"""
+        if not cls.collection_name:
+            raise ValueError("collection_name must be set in derived class")
+            
+        collection = db_manager.get_collection(cls.collection_name)
+        tasks = collection.find({'session_id': ObjectId(session_id)})
+        return [cls.from_dict(task) for task in tasks] 
